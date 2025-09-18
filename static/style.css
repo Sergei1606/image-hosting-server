@@ -1,0 +1,313 @@
+/* Основные переменные для цветов и шрифтов */
+:root {
+    --primary-blue: #0d6efd; /* Основной синий цвет */
+    --dark-bg: #121212; /* Темный фон */
+    --text-light: #ffffff; /* Светлый текст */
+    --text-dark: #212529; /* Темный текст */
+    --text-muted: #6c757d; /* Приглушенный текст */
+    --bg-light: #f8f9fa; /* Светлый фон */
+    --border-color: #dee2e6; /* Цвет границ */
+    --error-color: #dc3545; /* Цвет ошибки */
+    --font-family-main: 'Inter', 'Helvetica', 'Arial', sans-serif; /* Основной шрифт */
+}
+
+/* Сброс стандартных стилей */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Основные стили body */
+body {
+    font-family: var(--font-family-main);
+}
+
+/* Класс для скрытия элементов */
+.hidden {
+    display: none !important;
+}
+
+/* Стили для hero-страницы */
+.hero-page {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    min-height: 100vh; /* На всю высоту экрана */
+    background-color: var(--dark-bg);
+    transition: background-image 0.5s ease-in-out; /* Плавное изменение фона */
+    background-size: 30%;
+    background-repeat: no-repeat;
+    background-position: bottom;
+}
+
+/* Контент hero-страницы */
+.hero-content {
+    text-align: center;
+    color: var(--text-light);
+    padding: 20px 40px;
+    background-color: rgba(0, 0, 0, 0.4); /* Полупрозрачный фон */
+    border-radius: 10px;
+}
+
+/* Заголовок hero-страницы */
+.hero-title {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 20px;
+}
+
+/* Подзаголовок hero-страницы */
+.hero-subtitle {
+    font-size: 25px;
+    margin-bottom: 40px;
+    max-width: 400px;
+}
+
+/* Кнопка hero-страницы */
+.hero-button {
+    background-color: var(--primary-blue);
+    color: var(--text-light);
+    border: none;
+    padding: 12px 24px;
+    font-size: 25px;
+    font-weight: 500;
+    border-radius: 5px;
+    cursor: pointer;
+    text-transform: uppercase;
+}
+
+/* Основной контейнер приложения */
+.app-container {
+    max-width: 900px;
+    margin: 0 auto;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    padding: 24px;
+}
+
+/* Шапка приложения */
+.app-header {
+    display: flex;
+    justify-content: center;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #dee2e6;
+    margin-bottom: 24px;
+}
+
+/* Кнопки навигации */
+.app-nav__button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #6c757d;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s ease, border-color 0.2s ease;
+    padding: 12px 0;
+    font-size: 18px;
+    border-bottom: 3px solid transparent;
+}
+
+/* Активная кнопка навигации */
+.app-nav__button.active {
+    color: var(--primary-blue);
+    border-bottom-color: var(--primary-blue);
+    font-weight: 500;
+}
+
+/* Дополнительные стили для основного приложения */
+.main-app {
+    padding: 40px 20px;
+}
+
+/* Заголовок приложения */
+.app-title {
+    font-size: 32px;
+    color: var(--text-dark);
+    margin-bottom: 8px;
+}
+
+/* Подзаголовок приложения */
+.app-subtitle {
+    font-size: 16px;
+    color: var(--text-muted);
+}
+
+/* Навигация */
+.app-nav {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 32px;
+}
+
+/* Стили для зоны загрузки */
+.upload-drop-zone {
+    border: 2px dashed var(--primary-blue);
+    border-radius: 8px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    background-color: #f0f6ff;
+    transition: background-color 0.2s;
+}
+
+/* Состояние при перетаскивании файла */
+.upload-drop-zone.dragover {
+    background-color: #e0eaff;
+}
+
+/* Иконка загрузки */
+.upload-icon {
+    font-size: 48px;
+    color: var(--primary-blue);
+    margin-bottom: 16px;
+}
+
+/* Текст в зоне загрузки */
+.upload-drop-zone p {
+    color: var(--text-dark);
+    font-size: 18px;
+    margin-bottom: 8px;
+}
+
+/* Подсказка */
+.upload-hint {
+    color: var(--text-muted) !important;
+    font-size: 14px !important;
+}
+
+/* Сообщение об ошибке */
+.upload-error {
+    color: var(--error-color) !important;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+/* Кнопка выбора файла */
+.browse-btn {
+    width: 100%;
+    background-color: var(--primary-blue);
+    color: var(--text-light);
+    border: none;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 24px;
+    transition: background-color 0.2s;
+}
+
+/* Состояние при наведении на кнопку */
+.browse-btn:hover {
+    background-color: #133eea;
+}
+
+/* Блок с текущей загрузкой */
+.current-upload {
+    margin-top: 32px;
+}
+
+/* Заголовок блока */
+.current-upload h2 {
+    font-size: 18px;
+    margin-bottom: 12px;
+    color: var(--text-dark);
+}
+
+/* Контейнер для URL */
+.url-container {
+    display: flex;
+}
+
+/* Поле ввода URL */
+#url-input {
+    flex-grow: 1;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px 0 0 5px;
+    font-size: 16px;
+    background-color: #f8f9fa;
+}
+
+/* Кнопка копирования */
+#copy-btn {
+    background-color: var(--primary-blue);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 0 5px 5px 0;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+/* Стили для списка изображений */
+.image-list {
+    list-style: none;
+}
+
+/* Элемент списка */
+.image-item {
+    display: grid;
+    grid-template-columns: 2fr 3fr 1fr; /* Разметка в 3 колонки */
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Убираем границу у последнего элемента */
+.image-item:last-child {
+    border-bottom: none;
+}
+
+/* Блок с именем файла */
+.image-item__name {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 500;
+}
+
+/* Иконка файла */
+.image-item__name i {
+    color: var(--primary-blue);
+    font-size: 20px;
+}
+
+/* Ссылка на файл */
+.image-item__url a {
+    color: var(--text-muted);
+    text-decoration: none;
+    word-break: break-all; /* Перенос длинных URL */
+}
+
+/* Состояние ссылки при наведении */
+.image-item__url a:hover {
+    text-decoration: underline;
+    color: var(--primary-blue);
+}
+
+/* Блок с кнопкой удаления */
+.image-item__delete {
+    text-align: right;
+}
+
+/* Кнопка удаления */
+.delete-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 18px;
+    padding: 8px;
+    border-radius: 50%;
+}
+
+/* Состояние кнопки при наведении */
+.delete-btn:hover {
+    color: var(--error-color);
+    background-color: #fdeeee;
+}

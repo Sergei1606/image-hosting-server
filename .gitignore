@@ -1,0 +1,10 @@
+images
+logs
+.venv/
+venv/
+logs/
+*.log
+.idea/
+__pycache__/
+*.pyc
+.dockerignore
