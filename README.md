@@ -25,7 +25,7 @@
 ### 1. Клонирование репозитория
 ```bash
 git clone <your-repo-url>
-cd my_website
+cd image-hosting-server
 ```
 
 ### 2. Запуск с Docker Compose
