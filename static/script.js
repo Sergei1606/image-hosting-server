@@ -1,17 +1,7 @@
 /**
- * Основной клиентский скрипт для сервиса хостинга изображений.
- *
- * Обеспечивает взаимодействие с пользователем и API бэкенда:
- * - Загрузка файлов через drag & drop
- * - Отображение списка загруженных изображений
- * - Навигация между вкладками
- * - Взаимодействие с Python бэкендом через REST API
+ * ОБНОВЛЕННЫЙ клиентский скрипт для главной страницы
+ * Адаптирован под вашу HTML структуру
  */
-
-/**
- * Основной клиентский скрипт для сервиса хостинга изображений.
- */
-
 document.addEventListener('DOMContentLoaded', () => {
     const heroPage = document.getElementById('hero-page');
     const mainAppPage = document.getElementById('main-app-page');
@@ -28,70 +18,142 @@ document.addEventListener('DOMContentLoaded', () => {
     const imageList = document.getElementById('image-list');
     const imageItemTemplate = document.getElementById('image-item-template');
 
+    // 🔥 РАНДОМНЫЕ КАРТИНКИ ДЛЯ ГЛАВНОЙ СТРАНИЦЫ
     const heroImages = [
-        'static/assets/images/bird.png',
-        'static/assets/images/cat.png',
-        'static/assets/images/dog1.png',
-        'static/assets/images/dog2.png',
-        'static/assets/images/dog3.png'
+        '/static/images/bird.png',
+        '/static/images/cat.png',
+        '/static/images/dog1.png',
+        '/static/images/dog2.png',
+        '/static/images/dog3.png'
     ];
 
-    let uploadedImages = [];
-    let originalContent = dropZone.innerHTML; // Сохраняем оригинальное содержимое
+    let originalContent = dropZone.innerHTML;
 
-    // Загружаем сохраненные изображения из LocalStorage
-    try {
-        const savedImages = localStorage.getItem('uploadedImages');
-        if (savedImages) {
-            uploadedImages = JSON.parse(savedImages);
-            console.log('Загружено изображений из LocalStorage:', uploadedImages.length);
-        }
-    } catch (error) {
-        console.error('Ошибка загрузки из LocalStorage:', error);
-    }
-
-    // Функция для сохранения массива в LocalStorage
-    function saveToLocalStorage() {
+    // 🔥 ОСНОВНАЯ ФУНКЦИЯ - загрузка изображений с сервера
+    async function loadImagesFromServer() {
         try {
-            localStorage.setItem('uploadedImages', JSON.stringify(uploadedImages));
-            console.log('Сохранено в LocalStorage:', uploadedImages.length, 'изображений');
-        } catch (error) {
-            console.error('Ошибка сохранения в LocalStorage:', error);
-        }
-    }
+            console.log('🔄 Загружаем изображения с сервера...');
+            const response = await fetch('/images-list-data');
 
-    function setRandomHeroImage() {
-        const randomIndex = Math.floor(Math.random() * heroImages.length);
-        const randomImage = heroImages[randomIndex];
-        heroPage.style.backgroundImage = `url(${randomImage})`;
-    }
-
-    gotoAppButton.addEventListener('click', () => {
-        heroPage.classList.add('hidden');
-        mainAppPage.classList.remove('hidden');
-
-        if (uploadedImages.length > 0) {
-            renderImages();
-        }
-    });
-
-    navButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const view = button.dataset.view;
-            navButtons.forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-
-            if (view === 'upload') {
-                uploadView.classList.remove('hidden');
-                imagesView.classList.add('hidden');
-            } else {
-                uploadView.classList.add('hidden');
-                imagesView.classList.remove('hidden');
-                renderImages();
+            if (!response.ok) {
+                throw new Error(`Ошибка сервера: ${response.status}`);
             }
-        });
-    });
 
+            const serverImages = await response.json();
+            console.log('✅ Загружено изображений с сервера:', serverImages.length);
+
+            return serverImages.map(img => ({
+                id: img.id,
+                filename: img.filename,
+                url: `/images/${img.filename}`,
+                originalName: img.original_name,
+                size: img.size,
+                uploadTime: img.upload_time,
+                fileType: img.file_type
+            }));
+
+        } catch (error) {
+            console.error('💥 Ошибка загрузки изображений:', error);
+            showNotification('❌ Ошибка загрузки изображений: ' + error.message, 'error');
+            return [];
+        }
+    }
+
+    // 🔥 ОТОБРАЖЕНИЕ ИЗОБРАЖЕНИЙ ИЗ ДАННЫХ СЕРВЕРА
+    async function renderImages() {
+        try {
+            const images = await loadImagesFromServer();
+            imageList.innerHTML = '';
+
+            if (images.length === 0) {
+                imageList.innerHTML = `
+                    <li style="text-align:center; color: var(--text-muted); padding: 40px; list-style: none;">
+                        <i class="fas fa-image" style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
+                        <p>Изображения еще не загружены.</p>
+                        <p style="font-size: 0.9em; margin-top: 8px;">Загрузите первое изображение на вкладке "Загрузить"</p>
+                    </li>
+                `;
+                return;
+            }
+
+            images.forEach(image => {
+                const templateClone = imageItemTemplate.content.cloneNode(true);
+                const imageItem = templateClone.querySelector('.image-item');
+
+                // 🔥 Используем реальный ID из базы данных
+                imageItem.dataset.id = image.id;
+                imageItem.dataset.filename = image.filename;
+
+                // Заполняем имя файла
+                const nameSpan = templateClone.querySelector('.image-item__name span');
+                nameSpan.textContent = image.originalName;
+
+                // Заполняем ссылку
+                const urlLink = templateClone.querySelector('.image-item__url a');
+                urlLink.href = image.url;
+                urlLink.textContent = image.url;
+
+                // Добавляем информацию о размере и дате
+                const sizeInKB = (image.size / 1024).toFixed(1);
+                const uploadDate = new Date(image.uploadTime).toLocaleString('ru-RU');
+
+                const infoDiv = document.createElement('div');
+                infoDiv.style.cssText = 'font-size: 0.8em; color: #666; margin-top: 5px;';
+                infoDiv.innerHTML = `
+                    <span>${sizeInKB} KB</span> •
+                    <span>${uploadDate}</span> •
+                    <span>${image.fileType}</span>
+                `;
+
+                nameSpan.parentNode.appendChild(infoDiv);
+
+                imageList.appendChild(templateClone);
+            });
+
+            console.log('✅ Отрисовано изображений:', images.length);
+
+        } catch (error) {
+            console.error('💥 Ошибка отрисовки изображений:', error);
+            imageList.innerHTML = `
+                <li style="text-align:center; color: #e53e3e; padding: 20px; list-style: none;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Ошибка загрузки изображений</p>
+                </li>
+            `;
+        }
+    }
+
+    // 🔥 ФУНКЦИЯ УДАЛЕНИЯ ИЗОБРАЖЕНИЯ
+    async function deleteImage(imageId, filename) {
+        if (!confirm(`Вы уверены, что хотите удалить изображение "${filename}"?`)) {
+            return;
+        }
+
+        try {
+            console.log('🔄 Удаляем изображение ID:', imageId);
+            const response = await fetch(`/delete/${imageId}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                console.log('✅ Изображение успешно удалено');
+                showNotification('✅ Изображение успешно удалено', 'success');
+
+                // Перезагружаем список
+                await renderImages();
+            } else {
+                console.error('❌ Ошибка удаления:', result.message);
+                showNotification('❌ Ошибка при удалении: ' + result.message, 'error');
+            }
+        } catch (error) {
+            console.error('💥 Ошибка при удалении:', error);
+            showNotification('💥 Ошибка при удалении: ' + error.message, 'error');
+        }
+    }
+
+    // 🔥 ФУНКЦИЯ ЗАГРУЗКИ ФАЙЛА
     async function handleFileUpload(file) {
         console.log('=== НАЧАЛО ЗАГРУЗКИ ===');
         console.log('Файл:', file.name, 'Размер:', file.size);
@@ -99,235 +161,239 @@ document.addEventListener('DOMContentLoaded', () => {
         urlInput.value = '';
         uploadError.classList.add('hidden');
 
-        originalContent = dropZone.innerHTML; // Обновляем оригинальное содержимое
+        // Показываем индикатор загрузки
+        const originalContent = dropZone.innerHTML;
         dropZone.innerHTML = '<i class="fas fa-spinner fa-spin"></i><p>Загрузка...</p>';
 
         const formData = new FormData();
         formData.append('file', file);
 
         try {
-            console.log('🔄 Отправляю запрос на сервер...');
+            console.log('🔄 Отправляем файл на сервер...');
             const response = await fetch('/upload', {
                 method: 'POST',
                 body: formData
             });
 
             console.log('✅ Ответ получен. Статус:', response.status);
-            console.log('✅ Ответ OK?:', response.ok);
-
             const result = await response.json();
             console.log('📨 Данные от сервера:', result);
 
-            if (response.status === 200 && result.status === 'success') {
-                console.log('🎉 УСПЕХ! Файл загружен');
+            if (response.ok && result.status === 'success') {
+                console.log('🎉 Файл успешно загружен!');
 
                 const fullUrl = window.location.origin + result.url;
                 urlInput.value = fullUrl;
 
-                uploadedImages.push({
-                    id: Date.now(),
-                    name: file.name,
-                    url: result.url,
-                    originalName: result.original_name || file.name,
-                    filename: result.filename
-                });
-
-                saveToLocalStorage();
-
+                // Показываем успех
                 dropZone.innerHTML = originalContent;
-                uploadError.textContent = 'Файл успешно загружен!';
+                uploadError.textContent = '✅ Файл успешно загружен!';
                 uploadError.style.color = 'green';
                 uploadError.classList.remove('hidden');
-                uploadError.style.display = 'block';
+
+                showNotification('✅ Изображение успешно загружено', 'success');
+
+                // Автоматически переключаемся на вкладку изображений и обновляем список
+                setTimeout(async () => {
+                    navButtons.forEach(btn => btn.classList.remove('active'));
+                    document.querySelector('[data-view="images"]').classList.add('active');
+                    uploadView.classList.add('hidden');
+                    imagesView.classList.remove('hidden');
+                    await renderImages();
+                }, 1500);
 
             } else {
-                console.log('❌ ОШИБКА СЕРВЕРА:', result.message);
-
-                // ВРЕМЕННЫЙ ALERT (можно поменять позже)
-                alert(`🚨 СЕРВЕР ВЕРНУЛ ОШИБКУ:
-
-Сообщение: ${result.message}
-Статус: ${response.status}
-Файл: ${file.name}
-Размер: ${file.size} байт
-
-Проверьте консоль (F12) для деталей`);
-
-                // Показываем ошибку в интерфейсе
-                uploadError.textContent = result.message;
-                uploadError.classList.remove('hidden');
-                uploadError.style.display = 'block';
-                uploadError.style.color = 'red';
-                uploadError.style.backgroundColor = '#ffeeee';
-                uploadError.style.padding = '10px';
-                uploadError.style.border = '2px solid red';
-                uploadError.style.borderRadius = '5px';
-                uploadError.style.margin = '10px 0';
-                uploadError.style.fontWeight = 'bold';
-
-                dropZone.innerHTML = originalContent;
+                throw new Error(result.message || 'Неизвестная ошибка сервера');
             }
 
         } catch (error) {
-            console.error('💥 СЕТЕВАЯ ОШИБКА:', error);
-
-            // ✅ ОБРАБОТКА ОШИБОК: Определяем тип ошибки
-            let errorMessage = 'Ошибка сети';
-            // Проверяем тип сетевой ошибки
-            if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-                errorMessage = 'Сервер недоступен. Проверьте подключение.';
-            } else if (error.name === 'AbortError') {
-                errorMessage = 'Запрос был отменен';
-            }
-
-            // ALERT для сетевых ошибок
-            alert(`💥 СЕТЕВАЯ ОШИБКА:
-
-Ошибка: ${error.message}
-Файл: ${file.name}
-
-Возможно, файл слишком большой или проблемы с соединением`);
-
-            // Показываем ошибку в интерфейсе
-            uploadError.textContent = errorMessage;
-            uploadError.classList.remove('hidden');
-            uploadError.style.display = 'block';
-            uploadError.style.color = 'red';
-            uploadError.style.backgroundColor = '#ffeeee';
+            console.error('💥 Ошибка загрузки:', error);
 
             // Восстанавливаем dropZone
             dropZone.innerHTML = originalContent;
+
+            // Показываем ошибку
+            uploadError.textContent = '❌ ' + error.message;
+            uploadError.style.color = 'red';
+            uploadError.classList.remove('hidden');
+
+            showNotification('❌ Ошибка загрузки: ' + error.message, 'error');
         }
 
         console.log('=== КОНЕЦ ЗАГРУЗКИ ===');
     }
+    // 🔥 ОБРАБОТЧИКИ СОБЫТИЙ
+    function setupEventListeners() {
+        // Навигация
+        gotoAppButton.addEventListener('click', () => {
+            heroPage.classList.add('hidden');
+            mainAppPage.classList.remove('hidden');
+        });
 
-    browseBtn.addEventListener('click', () => fileInput.click());
-    dropZone.addEventListener('click', () => fileInput.click());
+        navButtons.forEach(button => {
+            button.addEventListener('click', async () => {
+                const view = button.dataset.view;
+                navButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
 
-    fileInput.addEventListener('change', () => {
-        if (fileInput.files.length > 0) {
-            handleFileUpload(fileInput.files[0]);
-        }
-    });
+                if (view === 'upload') {
+                    uploadView.classList.remove('hidden');
+                    imagesView.classList.add('hidden');
+                } else {
+                    // 🔥  ПЕРЕНАПРАВЛЯЕМ НА /images-list
+                    window.location.href = '/images-list';
+                }
+            });
+        });
 
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('dragover');
-    });
+//        // Загрузка файлов
+        browseBtn.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('click', () => fileInput.click());
 
-    dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('dragover');
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('dragover');
-        if (e.dataTransfer.files.length > 0) {
-            handleFileUpload(e.dataTransfer.files[0]);
-        }
-    });
-
-    copyBtn.addEventListener('click', async () => {
-        if (urlInput.value) {
-            try {
-                await navigator.clipboard.writeText(urlInput.value);
-                copyBtn.textContent = 'СКОПИРОВАНО!';
-                setTimeout(() => {
-                    copyBtn.textContent = 'КОПИРОВАТЬ';
-                }, 2000);
-            } catch (err) {
-                console.error('Ошибка копирования:', err);
-                urlInput.select();
-                document.execCommand('copy');
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                handleFileUpload(fileInput.files[0]);
             }
-        }
-    });
+        });
 
-    function renderImages() {
-        imageList.innerHTML = '';
+        // Drag & Drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
 
-        if (uploadedImages.length === 0) {
-            imageList.innerHTML = `
-                <p style="text-align:center; color: var(--text-muted); padding: 20px;">
-                    Изображения еще не загружены.
-                </p>
-            `;
-            return;
-        }
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
 
-        uploadedImages.forEach(image => {
-            const templateClone = imageItemTemplate.content.cloneNode(true);
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleFileUpload(e.dataTransfer.files[0]);
+            }
+        });
 
-            templateClone.querySelector('.image-item').dataset.id = image.id;
-            const nameSpan = templateClone.querySelector('.image-item__name span');
-            nameSpan.textContent = image.originalName || image.name;
+        // Копирование URL
+        copyBtn.addEventListener('click', async () => {
+            if (urlInput.value) {
+                try {
+                    await navigator.clipboard.writeText(urlInput.value);
+                    copyBtn.innerHTML = '<i class="fas fa-check"></i> СКОПИРОВАНО!';
+                    setTimeout(() => {
+                        copyBtn.innerHTML = '<i class="fas fa-copy"></i> КОПИРОВАТЬ';
+                    }, 2000);
+                } catch (err) {
+                    console.error('Ошибка копирования:', err);
+                    urlInput.select();
+                    document.execCommand('copy');
+                }
+            }
+        });
 
-            const urlLink = templateClone.querySelector('.image-item__url a');
-            urlLink.href = image.url;
-            urlLink.textContent = image.url;
-            urlLink.target = '_blank';
-            urlLink.rel = 'noopener noreferrer';
+        // Обработчик удаления изображений
+        imageList.addEventListener('click', async (e) => {
+            const link = e.target.closest('a');
+            if (link) {
+                e.preventDefault();
+                window.open(link.href, '_blank');
+                return;
+            }
 
-            imageList.appendChild(templateClone);
+            const deleteButton = e.target.closest('.delete-btn');
+            if (deleteButton) {
+                const listItem = e.target.closest('.image-item');
+                const imageId = parseInt(listItem.dataset.id, 10);
+                const filename = listItem.dataset.filename;
+
+                await deleteImage(imageId, filename);
+            }
         });
     }
 
-    // Обработчик кликов по списку изображений
-    imageList.addEventListener('click', async (e) => {
-        // Обработка клика по ссылке (открытие изображения)
-        const link = e.target.closest('a');
-        if (link) {
-            e.preventDefault();
-            window.open(link.href, '_blank');
-            return;
-        }
+    // 🔥 ФУНКЦИЯ УВЕДОМЛЕНИЙ
+    function showNotification(message, type = 'info') {
+        document.querySelectorAll('.notification').forEach(notif => notif.remove());
 
-        // Обработка удаления изображения
-        const deleteButton = e.target.closest('.delete-btn');
-        if (deleteButton) {
-            const listItem = e.target.closest('.image-item');
-            const imageId = parseInt(listItem.dataset.id, 10);
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'exclamation-triangle' : 'info'}"></i>
+                <span>${message}</span>
+            </div>
+        `;
 
-            // Находим изображение для удаления
-            const imageToDelete = uploadedImages.find(img => img.id === imageId);
-            if (!imageToDelete) return;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background: ${type === 'success' ? '#48bb78' : type === 'error' ? '#f56565' : '#4299e1'};
+            color: white;
+            border-radius: 8px;
+            z-index: 10000;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease;
+            max-width: 400px;
+            cursor: pointer;
+        `;
 
-            try {
-                // Отправляем запрос на удаление файла с сервера
-                const response = await fetch(`/images/${imageToDelete.filename}`, {
-                    method: 'DELETE'
-                });
+        document.body.appendChild(notification);
 
-                const result = await response.json();
-
-                if (result.status === 'success') {
-                    // Удаляем изображение из массива
-                    uploadedImages = uploadedImages.filter(img => img.id !== imageId);
-
-                    // Сохраняем изменения в LocalStorage
-                    saveToLocalStorage();
-
-                    // Обновляем список
-                    renderImages();
-
-                    console.log('Файл успешно удален с сервера:', imageToDelete.filename);
-                } else {
-                    console.error('Ошибка удаления файла с сервера:', result.message);
-                    alert('Ошибка при удалении файла: ' + result.message);
-                }
-
-            } catch (error) {
-                console.error('Ошибка при удалении файла:', error);
-                alert('Ошибка при удалении файла: ' + error.message);
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => notification.remove(), 300);
             }
-        }
-    });
+        }, 5000);
 
-    setRandomHeroImage();
-
-    if (uploadedImages.length > 0) {
-        console.log('Рендерим сохраненные изображения:', uploadedImages.length);
-        renderImages();
+        notification.addEventListener('click', () => {
+            notification.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => notification.remove(), 300);
+        });
     }
+
+    // 🔥 ИНИЦИАЛИЗАЦИЯ
+    function init() {
+        // Добавляем CSS анимации
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+            .notification {
+                transition: transform 0.2s ease;
+            }
+            .notification:hover {
+                transform: scale(1.02);
+            }
+        `;
+        document.head.appendChild(style);
+
+        // 🔥 УСТАНАВЛИВАЕМ СЛУЧАЙНОЕ ФОНОВОЕ ИЗОБРАЖЕНИЕ ДЛЯ ГЛАВНОЙ СТРАНИЦЫ
+        function setRandomHeroImage() {
+            const randomIndex = Math.floor(Math.random() * heroImages.length);
+            const randomImage = heroImages[randomIndex];
+            heroPage.style.backgroundImage = `url(${randomImage})`;
+            console.log('🎨 Установлен фон:', randomImage);
+        }
+
+        // 🔥 ВЫЗЫВАЕМ ФУНКЦИЮ УСТАНОВКИ ФОНА
+        setRandomHeroImage();
+
+        // Настраиваем обработчики событий
+        setupEventListeners();
+
+        console.log('🚀 Приложение инициализировано');
+    }
+
+    // Запускаем приложение
+    init();
 });
