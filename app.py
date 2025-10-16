@@ -12,20 +12,32 @@ import io
 from PIL import Image
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from dotenv import load_dotenv
 
-# Конфигурационные константы
+# Загрузка переменных окружения
+load_dotenv()
+
+# Конфигурационные константы из .env
 STATIC_FILES_DIR = 'static'
 UPLOAD_DIR = 'images'
-MAX_FILE_SIZE = 5 * 1024 * 1024
-ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif']
+MAX_FILE_SIZE = int(os.getenv('MAX_FILE_SIZE', 5 * 1024 * 1024))
+ALLOWED_EXTENSIONS = os.getenv('ALLOWED_EXTENSIONS', '.jpg,.jpeg,.png,.gif').split(',')
 LOG_DIR = 'logs'
-ITEMS_PER_PAGE = 10  # Количество изображений на странице
+ITEMS_PER_PAGE = 10
+
+# Конфигурация БД из .env
+DB_CONFIG = {
+    "dbname": os.getenv('POSTGRES_DB', 'images_db'),
+    "user": os.getenv('POSTGRES_USER', 'postgres'),
+    "password": os.getenv('POSTGRES_PASSWORD', 'password'),
+    "host": os.getenv('DATABASE_HOST', 'db'),
+    "port": os.getenv('DATABASE_PORT', '5432')
+}
 
 # Создание необходимых директорий
-if not os.path.exists(UPLOAD_DIR):
-    os.makedirs(UPLOAD_DIR)
-if not os.path.exists(LOG_DIR):
-    os.makedirs(LOG_DIR)
+for directory in [UPLOAD_DIR, LOG_DIR]:
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
 # Настройка логирования
 logging.basicConfig(
@@ -39,7 +51,7 @@ logging.basicConfig(
 
 
 def require_db_connection(func):
-    """Декоратор для проверки подключения к БД перед выполнением метода."""
+    """Декоратор для проверки подключения к БД."""
 
     def wrapper(self, *args, **kwargs):
         if not db.is_connected():
@@ -64,21 +76,13 @@ class Database:
         logging.info("Попытка подключения к базе данных...")
         for attempt in range(self.max_retries):
             try:
-                self.connection = psycopg2.connect(
-                    dbname="images_db",
-                    user="postgres",
-                    password="password",
-                    host="db",
-                    port="5432",
-                    connect_timeout=10
-                )
-                # Проверяем, что соединение работает
+                self.connection = psycopg2.connect(**DB_CONFIG, connect_timeout=10)
                 with self.connection.cursor() as cursor:
                     cursor.execute("SELECT 1")
                 logging.info("Успешное подключение к базе данных")
                 return
             except Exception as e:
-                logging.warning(f"Попытка {attempt + 1}/{self.max_retries}: Ошибка подключения к базе данных: {e}")
+                logging.warning(f"Попытка {attempt + 1}/{self.max_retries}: Ошибка подключения: {e}")
                 if attempt < self.max_retries - 1:
                     time.sleep(self.retry_delay)
                 else:
@@ -112,11 +116,9 @@ class Database:
             with self.connection.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute(query, params)
                 if fetch:
-                    result = cursor.fetchall()
-                    return result
+                    return cursor.fetchall()
                 self.connection.commit()
                 return True
-
         except psycopg2.OperationalError as e:
             logging.error(f"Ошибка подключения к БД: {e}")
             self.connection = None
@@ -129,20 +131,13 @@ class Database:
 
     def save_image_metadata(self, filename, original_name, size, file_type):
         """Сохраняет метаданные изображения в базу данных."""
-        query = """
-        INSERT INTO images (filename, original_name, size, file_type)
-        VALUES (%s, %s, %s, %s)
-        """
+        query = "INSERT INTO images (filename, original_name, size, file_type) VALUES (%s, %s, %s, %s)"
         return self.execute_query(query, (filename, original_name, size, file_type))
 
     def get_images(self, page=1, per_page=ITEMS_PER_PAGE):
         """Получает список изображений с пагинацией."""
         offset = (page - 1) * per_page
-        query = """
-        SELECT * FROM images 
-        ORDER BY upload_time DESC 
-        LIMIT %s OFFSET %s
-        """
+        query = "SELECT * FROM images ORDER BY upload_time DESC LIMIT %s OFFSET %s"
         result = self.execute_query(query, (per_page, offset), fetch=True)
         return result if result else []
 
@@ -153,7 +148,7 @@ class Database:
         return result[0]['count'] if result else 0
 
     def get_image(self, **filters):
-        """УНИВЕРСАЛЬНЫЙ МЕТОД: Получает информацию об изображении по указанным фильтрам."""
+        """Получает информацию об изображении по указанным фильтрам."""
         if not filters:
             return None
 
@@ -205,7 +200,7 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
             return 'application/octet-stream'
 
     def end_headers(self):
-        """Добавляет CORS заголовки к ответу для кросс-доменных запросов."""
+        """Добавляет CORS заголовки к ответу."""
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
@@ -215,7 +210,6 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         """Обрабатывает OPTIONS запросы для CORS preflight."""
         self._set_headers(200)
-        self.end_headers()
 
     def do_GET(self):
         """Обрабатывает GET запросы."""
@@ -242,9 +236,7 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
     def _serve_images_list_data(self):
         """Возвращает JSON с данными изображений для фронтенда."""
         try:
-            # Получаем все изображения из базы данных
             images = db.get_images(1, 1000)
-
             images_data = []
             for img in images:
                 images_data.append({
@@ -259,7 +251,6 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
             self._set_headers(200, 'application/json')
             self.wfile.write(json.dumps(images_data).encode('utf-8'))
             logging.info(f"Отправлены данные {len(images_data)} изображений для фронтенда")
-
         except Exception as e:
             logging.error(f"Ошибка при получении данных для фронтенда: {e}")
             self._send_error_response(500, f"Ошибка при получении данных: {e}")
@@ -268,24 +259,19 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
     def _serve_images_list(self, query_string):
         """Отображает страницу со списком изображений."""
         try:
-            # Парсим параметры пагинации
             params = parse_qs(query_string)
             page = int(params.get('page', [1])[0])
             if page < 1:
                 page = 1
 
-            # Получаем данные из базы
             images = db.get_images(page)
             total_count = db.get_total_images_count()
             total_pages = max(1, (total_count + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
 
-            # Генерируем HTML страницу
             html = self._generate_images_list_html(images, page, total_pages)
-
             self._set_headers(200, 'text/html')
             self.wfile.write(html.encode('utf-8'))
             logging.info(f"Отображен список изображений, страница {page}")
-
         except Exception as e:
             self._set_headers(500, 'text/plain')
             self.wfile.write(b"500 Internal Server Error")
@@ -293,128 +279,32 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
 
     def _generate_images_list_html(self, images, current_page, total_pages):
         """Генерирует HTML для страницы списка изображений."""
-        # Стили для таблицы
-        styles = """
-        <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-            th { background-color: #f2f2f2; }
-            tr:hover { background-color: #f5f5f5; }
-            .pagination { margin: 20px 0; }
-            .pagination a { 
-                padding: 8px 16px; 
-                text-decoration: none; 
-                border: 1px solid #ddd; 
-                margin: 0 4px; 
-                color: #007bff;
-            }
-            .pagination a:hover { background-color: #e9ecef; }
-            .pagination .current { 
-                padding: 8px 16px; 
-                background-color: #007bff; 
-                color: white; 
-                border: 1px solid #007bff; 
-            }
-            .delete-btn { 
-                background-color: #dc3545; 
-                color: white; 
-                border: none; 
-                padding: 5px 10px; 
-                cursor: pointer; 
-                border-radius: 3px; 
-            }
-            .delete-btn:hover { background-color: #c82333; }
-            .file-link { color: #007bff; text-decoration: none; }
-            .file-link:hover { text-decoration: underline; }
-            .no-data { text-align: center; padding: 20px; color: #666; }
-        </style>
-        """
-
-        # Заголовок таблицы
-        table_header = """
-        <table>
-            <thead>
-                <tr>
-                    <th>Имя файла</th>
-                    <th>Оригинальное имя</th>
-                    <th>Размер (КБ)</th>
-                    <th>Дата загрузки</th>
-                    <th>Тип файла</th>
-                    <th>Действия</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
-
-        # Строки таблицы с данными изображений
         table_rows = ""
         if images:
             for img in images:
                 size_kb = img['size'] / 1024
                 upload_time = img['upload_time'].strftime('%Y-%m-%d %H:%M:%S')
-
                 table_rows += f"""
                 <tr>
-                    <td>
-                        <a href="/images/{img['filename']}" class="file-link" target="_blank">
-                            {img['filename']}
-                        </a>
-                    </td>
+                    <td><a href="/images/{img['filename']}" class="file-link" target="_blank">{img['filename']}</a></td>
                     <td>{img['original_name']}</td>
                     <td>{size_kb:.1f}</td>
                     <td>{upload_time}</td>
                     <td>{img['file_type']}</td>
-                    <td>
-                        <button class="delete-btn" onclick="deleteImage({img['id']})">
-                            Удалить
-                        </button>
-                    </td>
+                    <td><button class="delete-btn" onclick="deleteImage({img['id']})">Удалить</button></td>
                 </tr>
                 """
         else:
             table_rows = '<tr><td colspan="6" class="no-data">Нет загруженных изображений</td></tr>'
 
-        table_footer = """
-            </tbody>
-        </table>
-        """
-
-        # Пагинация
         pagination = '<div class="pagination">'
         if current_page > 1:
             pagination += f'<a href="/images-list?page={current_page - 1}">Предыдущая</a>'
-
         pagination += f'<span class="current">Страница {current_page} из {total_pages}</span>'
-
         if current_page < total_pages:
             pagination += f'<a href="/images-list?page={current_page + 1}">Следующая</a>'
         pagination += '</div>'
 
-        # JavaScript для удаления
-        javascript = """
-        <script>
-            function deleteImage(imageId) {
-                if (confirm('Вы уверены, что хотите удалить это изображение?')) {
-                    fetch('/delete/' + imageId, { method: 'DELETE' })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.status === 'success') {
-                                alert('Изображение успешно удалено');
-                                location.reload();
-                            } else {
-                                alert('Ошибка при удалении: ' + data.message);
-                            }
-                        })
-                        .catch(error => {
-                            alert('Ошибка при удалении: ' + error);
-                        });
-                }
-            }
-        </script>
-        """
-
-        # Собираем полную HTML страницу
         html = f"""
         <!DOCTYPE html>
         <html lang="ru">
@@ -422,24 +312,53 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Список изображений</title>
-            {styles}
+            <link rel="stylesheet" href="/static/style.css">
         </head>
         <body>
-            <h1>Список загруженных изображений</h1>
-            <p><a href="/">Вернуться на главную</a></p>
-            {table_header}
-            {table_rows}
-            {table_footer}
-            {pagination}
-            {javascript}
+            <div class="container">
+                <h1>Список загруженных изображений</h1>
+                <p><a href="/">Вернуться на главную</a></p>
+                <table class="images-table">
+                    <thead>
+                        <tr>
+                            <th>Имя файла</th>
+                            <th>Оригинальное имя</th>
+                            <th>Размер (КБ)</th>
+                            <th>Дата загрузки</th>
+                            <th>Тип файла</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>{table_rows}</tbody>
+                </table>
+                {pagination}
+            </div>
+            <script>
+                function deleteImage(imageId) {{
+                    if (confirm('Вы уверены, что хотите удалить это изображение?')) {{
+                        fetch('/delete/' + imageId, {{ method: 'DELETE' }})
+                            .then(response => response.json())
+                            .then(data => {{
+                                if (data.status === 'success') {{
+                                    alert('Изображение успешно удалено');
+                                    location.reload();
+                                }} else {{
+                                    alert('Ошибка при удалении: ' + data.message);
+                                }}
+                            }})
+                            .catch(error => {{
+                                alert('Ошибка при удалении: ' + error);
+                            }});
+                    }}
+                }}
+            </script>
         </body>
         </html>
         """
-
         return html
 
     def _serve_file(self, file_path, base_dir, file_type="static"):
-        """УНИВЕРСАЛЬНЫЙ МЕТОД: Обслуживает файлы из указанной базовой директории."""
+        """Обслуживает файлы из указанной базовой директории."""
         try:
             filename = os.path.basename(file_path)
             full_path = os.path.join(base_dir, filename)
@@ -461,7 +380,6 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
                 self._set_headers(404, 'text/plain')
                 self.wfile.write(b"404 Not Found")
                 logging.warning(f"{file_type.capitalize()} файл не найден: {filename}")
-
         except Exception as e:
             self._set_headers(500, 'text/plain')
             self.wfile.write(b"500 Internal Server Error")
@@ -501,8 +419,7 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
     def _handle_file_delete(self, image_id):
         """Удаляет файл из файловой системы и базы данных."""
         try:
-            # Получаем информацию об изображении из базы данных
-            image_info = db.get_image(id=image_id)  # Используем универсальный метод
+            image_info = db.get_image(id=image_id)
             if not image_info:
                 self._send_error_response(404, "Изображение не найдено в базе данных")
                 logging.warning(f"Изображение с ID {image_id} не найдено в базе данных")
@@ -513,20 +430,17 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
             full_path = os.path.abspath(full_path)
             upload_dir = os.path.abspath(UPLOAD_DIR)
 
-            # Проверяем безопасность пути
             if not full_path.startswith(upload_dir):
-                self._send_error_response(403, "Запрещенный пути")
+                self._send_error_response(403, "Запрещенный путь")
                 logging.warning(f"Попытка удаления вне директории: {full_path}")
                 return
 
-            # Удаляем файл с диска
             if os.path.exists(full_path) and os.path.isfile(full_path):
                 os.remove(full_path)
                 logging.info(f"Файл удален с диска: {filename}")
             else:
                 logging.warning(f"Файл не найден на диске: {filename}")
 
-            # Удаляем запись из базы данных
             if db.delete_image(image_id):
                 self._set_headers(200, 'application/json')
                 response = {"status": "success", "message": "Файл успешно удален"}
@@ -535,7 +449,6 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
             else:
                 self._send_error_response(500, "Ошибка при удалении из базы данных")
                 logging.error(f"Ошибка при удалении записи из базы данных: ID {image_id}")
-
         except Exception as e:
             self._send_error_response(500, "Ошибка при удалении файла")
             logging.error(f"Ошибка при удалении файла ID {image_id}: {e}")
@@ -612,7 +525,6 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
             logging.warning(f"Файл превышает размер: {filename}, {file_size} байт")
             return
 
-        # Pillow валидация
         try:
             image_data = io.BytesIO(file_data)
             validation_image = Image.open(image_data)
@@ -621,13 +533,12 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
             image = Image.open(image_data)
 
             if image.format not in ['JPEG', 'PNG', 'GIF']:
-                self._send_error_response(400,
-                                          f"Неподдерживаемый формат изображения: {image.format}. Допустимы: JPEG, PNG, GIF")
+                self._send_error_response(400, f"Неподдерживаемый формат изображения: {image.format}")
                 logging.warning(f"Pillow обнаружил неподдерживаемый формат: {filename} -> {image.format}")
                 return
 
             if image.width > 10000 or image.height > 10000:
-                self._send_error_response(400, "Слишком большие размеры изображения (максимум 10000x10000 пикселей)")
+                self._send_error_response(400, "Слишком большие размеры изображения")
                 logging.warning(f"Изображение слишком большое: {image.size}")
                 return
 
@@ -643,30 +554,22 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
             with open(target_path, 'wb') as f:
                 f.write(file_data)
 
-            # Сохраняем метаданные в базу данных
             file_type = image.format.lower() if image.format else file_extension[1:]
             if db.save_image_metadata(unique_filename, filename, file_size, file_type):
                 file_url = f"/images/{unique_filename}"
-                logging.info(
-                    f"Изображение '{filename}' сохранено как '{unique_filename}' (формат: {image.format}, размер: {image.size})")
-
+                logging.info(f"Изображение '{filename}' сохранено как '{unique_filename}'")
                 self._send_success_response({
                     "status": "success",
                     "message": "Файл успешно загружен.",
                     "filename": unique_filename,
                     "url": file_url,
-                    "original_name": filename,
-                    "image_format": image.format,
-                    "image_width": image.width,
-                    "image_height": image.height
+                    "original_name": filename
                 })
             else:
-                # Если не удалось сохранить в БД, удаляем файл
                 if os.path.exists(target_path):
                     os.remove(target_path)
                 self._send_error_response(500, "Ошибка при сохранении метаданных в базу данных")
                 logging.error(f"Ошибка сохранения метаданных для файла '{filename}'")
-
         except Exception as e:
             self._send_error_response(500, "Ошибка при сохранении файла")
             logging.error(f"Ошибка сохранения файла '{filename}': {e}")
@@ -685,7 +588,6 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
 
 def run_server(port=8000):
     """Запускает HTTP сервер."""
-    # Даем время на инициализацию БД
     logging.info("Ожидание инициализации базы данных...")
     time.sleep(5)
 
@@ -697,7 +599,6 @@ def run_server(port=8000):
     logging.info(f"Директория логов: {os.path.abspath(LOG_DIR)}")
     logging.info(f"Статическая директория: {os.path.abspath(STATIC_FILES_DIR)}")
 
-    # Проверяем статус подключения к БД
     if db.is_connected():
         logging.info("Подключение к базе данных активно")
     else:

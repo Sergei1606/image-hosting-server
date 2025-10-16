@@ -311,3 +311,34 @@ body {
     color: var(--error-color);
     background-color: #fdeeee;
 }
+
+/* Стили для страницы списка изображений */
+.images-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+.images-table th,
+.images-table td {
+    border: 1px solid #ddd;
+    padding: 12px;
+    text-align: left;
+}
+
+.images-table th {
+    background-color: #f2f2f2;
+}
+
+.pagination {
+    margin: 20px 0;
+}
+
+.delete-btn {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 3px;
+}
