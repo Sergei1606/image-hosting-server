@@ -360,8 +360,7 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
     def _serve_file(self, file_path, base_dir, file_type="static"):
         """Обслуживает файлы из указанной базовой директории."""
         try:
-            filename = os.path.basename(file_path)
-            full_path = os.path.join(base_dir, filename)
+            full_path = os.path.join(base_dir, file_path)
             full_path = os.path.abspath(full_path)
             base_dir_abs = os.path.abspath(base_dir)
 
@@ -375,11 +374,14 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
                 self._set_headers(200, self._get_content_type(full_path))
                 with open(full_path, 'rb') as f:
                     self.wfile.write(f.read())
-                logging.info(f"Обслужен {file_type} файл: {filename}")
+                logging.info(f"Обслужен {file_type} файл: {file_path}")
             else:
                 self._set_headers(404, 'text/plain')
                 self.wfile.write(b"404 Not Found")
-                logging.warning(f"{file_type.capitalize()} файл не найден: {filename}")
+                logging.warning(f"{file_type.capitalize()} файл не найден: {file_path}")
+
+        except BrokenPipeError:
+            logging.debug("Клиент закрыл соединение")
         except Exception as e:
             self._set_headers(500, 'text/plain')
             self.wfile.write(b"500 Internal Server Error")
@@ -387,6 +389,7 @@ class ImageHostingHandler(http.server.BaseHTTPRequestHandler):
 
     def _serve_static_file(self, file_path):
         """Обслуживает статические файлы из папки static."""
+        logging.debug(f"Static file request: {file_path}")
         self._serve_file(file_path, STATIC_FILES_DIR, "static")
 
     def _serve_uploaded_file(self, file_path):
