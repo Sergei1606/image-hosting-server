@@ -1,10 +1,39 @@
-images
-logs
+# Пользовательские данные (загруженные файлы)
+images/
+*.jpg
+*.png
+*.gif
+*.jpeg
+
+# Логи
+*.log
+logs/
+
+# Виртуальные окружения Python
 .venv/
 venv/
-logs/
-*.log
+env/
+
+# Файлы IDE
 .idea/
+.vscode/
+*.swp
+*.swo
+
+# Кэш Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.python-version
+
+# Docker
 .dockerignore
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+
+# Резервные копии (опционально - можно оставить для демо)
+# backups/
+

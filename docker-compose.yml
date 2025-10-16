@@ -10,7 +10,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data           # ← ЭТО ОСТАВИТЬ
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d images_db"]
@@ -24,9 +24,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - images:/app/images
-      - logs:/app/logs
-      - backups:/app/backups
+      - ./images:/app/images
+      - ./logs:/app/logs
+      - ./backups:/app/backups
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql://postgres:password@db:5432/images_db
@@ -40,19 +40,17 @@ services:
       timeout: 10s
       retries: 3
 
-  nginx:  # ✅ ИСПРАВЛЕНА ОПЕЧАТКА
+  nginx:
     image: nginx:alpine
     ports:
       - "8080:80"
     volumes:
+      - ./images:/app/images:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - images:/app/images:ro
     depends_on:
       - app
     restart: unless-stopped
 
+# 🔥 ДОБАВИТЬ ТОЛЬКО ЭТОТ VOLUME:
 volumes:
-  images:
-  logs:
-  backups:
-  db_data:
+  db_data:    # ← ТОЛЬКО ДЛЯ БАЗЫ ДАННЫХ
